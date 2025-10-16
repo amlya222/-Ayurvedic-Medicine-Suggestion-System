@@ -1,0 +1,104 @@
+.stay-healthy-dashboard {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  max-width: 700px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.edit-btn {
+  float: right;
+  margin-left: 16px;
+  background: #7a9c5c;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  cursor: pointer;
+  font-size: 1em;
+}
+
+.dashboard-bars > div {
+  margin-bottom: 16px;
+}
+
+.bar {
+  background: #e5e9e2;
+  border-radius: 8px;
+  height: 10px;
+  width: 200px;
+  display: inline-block;
+  margin: 0 12px 0 0;
+  vertical-align: middle;
+}
+
+.bar-fill {
+  background: #7a9c5c;
+  height: 100%;
+  border-radius: 8px;
+}
+
+.dashboard-info {
+  margin-top: 24px;
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+
+.wellness-score {
+  font-size: 2.5em;
+  color: #7a9c5c;
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+.dashboard-quote {
+  margin-top: 24px;
+  color: #888;
+}
+
+.edit-modal {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #f9f9f9;
+  border: 1px solid #d1e2c4;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  z-index: 10;
+  width: 320px;
+}
+
+.edit-modal label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 1em;
+}
+
+.edit-modal input {
+  margin-left: 8px;
+  width: 60px;
+  padding: 4px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.modal-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+}
+
+.edit-modal button {
+  background: #7a9c5c;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  cursor: pointer;
+  font-size: 1em;
+}
