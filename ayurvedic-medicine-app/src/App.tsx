@@ -9,6 +9,7 @@ import MedicineSearch from './components/MedicineSearch';
 import { Login, Signup } from './components/auth';
 import Profile from './components/Profile';
 import StayHealthy from './components/StayHealthy';
+import Chatbot from './components/Chatbot';
 import './App.css';
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/stay-healthy" element={<StayHealthy userId={userId || undefined} />} />
+          <Route path="/chatbot" element={<Chatbot />} />
         </Routes>
         <Footer />
       </div>

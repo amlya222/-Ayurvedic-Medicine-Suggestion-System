@@ -13,6 +13,131 @@ app.use(cors());
 app.use(express.json());
 app.use(bodyParser.json());
 
+const chatRateLimits = new Map();
+
+function limitChatRequests(req, res, next) {
+  const now = Date.now();
+  const window = chatRateLimits.get(req.ip);
+  if (!window || window.resetAt <= now) {
+    chatRateLimits.set(req.ip, { count: 1, resetAt: now + 60000 });
+  } else if (window.count >= 10) {
+    return res.status(429).json({ message: 'Too many messages. Please try again in a minute.' });
+  } else {
+    window.count += 1;
+  }
+
+  if (chatRateLimits.size > 10000) {
+    for (const [ip, limit] of chatRateLimits) {
+      if (limit.resetAt <= now) chatRateLimits.delete(ip);
+    }
+  }
+
+  return next();
+}
+
+app.post('/api/chat', limitChatRequests, async (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ message: 'The chatbot is not configured yet. Add GEMINI_API_KEY to server/.env.' });
+  }
+
+  const { messages } = req.body;
+  if (
+    !Array.isArray(messages) ||
+    messages.length === 0 ||
+    messages.length > 20 ||
+    messages.some((message) =>
+      !message ||
+      !['user', 'assistant'].includes(message.role) ||
+      typeof message.content !== 'string' ||
+      !message.content.trim() ||
+      message.content.length > 4000
+    ) ||
+    messages[messages.length - 1].role !== 'user'
+  ) {
+    return res.status(400).json({ message: 'Please send a valid chat message.' });
+  }
+
+  try {
+    const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+    const fallbackModel = 'gemini-3.5-flash-lite';
+    const requestModel = (requestedModel) => fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(requestedModel)}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{
+              text: 'You are the friendly assistant for the Ayurvedic Medicine Suggestion System website. Help users navigate the site, including Home, Medicine Search, How to Use, Stay Healthy, and Contact Us. Be clear that you cannot access or change their account or search results. You may offer general educational information about Ayurveda, but do not diagnose, prescribe, recommend stopping prescribed treatment, or claim that herbs are proven cures. For personal medical questions, encourage consultation with a qualified healthcare professional. For emergency symptoms, advise seeking emergency services immediately. Keep replies concise and never present website suggestions as a substitute for professional medical advice.'
+            }]
+          },
+          contents: messages.map(({ role, content }) => ({
+            role: role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: content.trim() }]
+          })),
+          generationConfig: {
+            maxOutputTokens: 500,
+            temperature: 0.5
+          }
+        }),
+        signal: AbortSignal.timeout(30000)
+      }
+    );
+
+    let response = await requestModel(model);
+    let activeModel = model;
+    if (response.status === 503 && model !== fallbackModel) {
+      console.warn(`Gemini model ${model} is unavailable; retrying with ${fallbackModel}`);
+      activeModel = fallbackModel;
+      response = await requestModel(fallbackModel);
+    }
+
+    if (!response.ok) {
+      let providerError;
+      try {
+        providerError = await response.json();
+      } catch {
+        providerError = null;
+      }
+
+      const errorCode = providerError?.error?.status || providerError?.error?.code;
+      console.error('Gemini chat request failed:', response.status, errorCode || 'unknown error', providerError?.error?.message || '');
+
+      if (response.status === 429) {
+        return res.status(429).json({ message: 'The Gemini free-tier limit was reached. Check Google AI Studio usage limits or try again later.' });
+      }
+      if (response.status === 401 || response.status === 403) {
+        return res.status(502).json({ message: 'Gemini rejected the API key or project. Check the key and API access in Google AI Studio.' });
+      }
+      if (response.status === 404) {
+        return res.status(502).json({ message: `Gemini model ${activeModel} is unavailable. Check that the model is enabled for this API key.` });
+      }
+      if (response.status === 503) {
+        return res.status(503).json({ message: 'Gemini is temporarily at capacity. Please wait a moment and try again.' });
+      }
+      return res.status(502).json({ message: 'The assistant is temporarily unavailable. Please try again shortly.' });
+    }
+
+    const result = await response.json();
+    const answer = result.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text || '')
+      .join('')
+      .trim();
+    if (!answer) {
+      return res.status(502).json({ message: 'The assistant returned an empty response. Please try again.' });
+    }
+
+    return res.json({ reply: answer });
+  } catch (error) {
+    console.error('Chat request error:', error.message);
+    return res.status(502).json({ message: 'Could not reach the assistant. Please try again shortly.' });
+  }
+});
+
 
 // In-memory store for wellness data
 const wellnessDataStore = {};
@@ -36,12 +161,7 @@ try {
   console.log('✅ Connected to MongoDB Atlas successfully');
 } catch (error) {
   console.error('❌ MongoDB connection error:', error.message);
-  console.log('💡 Make sure to:');
-  console.log('   1. Create a .env file in the server directory');
-  console.log('   2. Add your MongoDB Atlas connection string as MONGODB_URI');
-  console.log('   3. Whitelist your IP address in MongoDB Atlas');
-  console.log('   4. Check your username/password in the connection string');
-  process.exit(1);
+  console.log('⚠️  Starting API without MongoDB; database-backed features will be unavailable');
 }
 
 const userSchema = new mongoose.Schema({
